@@ -83,7 +83,7 @@ https://<defaultHostname>
 For example: `https://calendar-matrix.azurestaticapps.net`.
 
 Static Web Apps also creates preview environments for pull requests at URLs
-like `https://<defaultHostname-branch-hash>.westus2.azurestaticapps.net`; add
+like `https://<defaultHostname-branch-hash>.<region>.azurestaticapps.net`; add
 those individually if you need MSAL sign-in to work on PR previews.
 
 ## 4. Get the Static Web Apps deployment token
