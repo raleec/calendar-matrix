@@ -75,3 +75,7 @@ pull requests. It requires:
   the Static Web App resource)
 - repository variables `VITE_AAD_CLIENT_ID` and `VITE_AAD_TENANT_ID`, which are
   passed to the build as environment variables
+
+See [`docs/deployment.md`](docs/deployment.md) for the end-to-end guide to
+provisioning the Azure infrastructure (`infra/main.bicep`), registering the
+Entra ID app, and wiring up the GitHub Actions deployment pipeline.
