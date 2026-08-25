@@ -49,6 +49,9 @@ jobs:
           app_location: '/'
           output_location: 'dist'
           skip_app_build: true
+          # Until AZURE_STATIC_WEB_APPS_API_TOKEN is configured, skip the
+          # deployment instead of failing the workflow.
+          skip_deploy_on_missing_secrets: true
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -60,3 +63,4 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           action: close
+          skip_deploy_on_missing_secrets: true

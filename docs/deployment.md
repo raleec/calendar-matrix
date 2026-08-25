@@ -118,6 +118,11 @@ These are consumed by [`.github/workflows/azure-static-web-apps.yml`](../.github
 which builds the app with the `VITE_AAD_CLIENT_ID` / `VITE_AAD_TENANT_ID`
 environment variables set and deploys it using the deployment token.
 
+> The workflow sets `skip_deploy_on_missing_secrets: true`, so runs still
+> succeed (building only, without deploying) before
+> `AZURE_STATIC_WEB_APPS_API_TOKEN` has been added. Once the secret is
+> configured, deployments happen automatically.
+
 ## 6. Push
 
 - Pushing to `main` triggers `build_and_deploy_job`, which builds and deploys
