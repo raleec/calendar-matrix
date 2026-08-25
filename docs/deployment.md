@@ -38,6 +38,16 @@ az deployment group create \
   --parameters infra/main.bicepparam
 ```
 
+> This guide deploys the Static Web App without connecting Azure's managed
+> GitHub integration — `repositoryUrl` is recorded for reference but
+> deployment is instead done via the GitHub Actions workflow using
+> `AZURE_STATIC_WEB_APPS_API_TOKEN` (step 4). If you'd rather let Azure manage
+> the GitHub Actions workflow for you, pass a GitHub personal access token via
+> the optional `repositoryToken` parameter (e.g.
+> `--parameters repositoryToken=$GITHUB_PAT`); omitting it while still
+> setting `repositoryUrl` is fine, since the template only forwards
+> `repositoryUrl`/`branch` to Azure when a `repositoryToken` is supplied.
+
 Capture the `defaultHostname` output — it's the hostname of the deployed
 Static Web App (e.g. `calendar-matrix.azurestaticapps.net`):
 
@@ -86,16 +96,23 @@ az staticwebapp secrets list \
   --output tsv
 ```
 
-## 5. Configure GitHub repository secrets
+## 5. Configure GitHub repository secrets and variables
 
-In the GitHub repository, go to **Settings → Secrets and variables → Actions**
-and add:
+In the GitHub repository, go to **Settings → Secrets and variables → Actions**.
+
+Add as a **secret**:
 
 | Secret name                          | Value                                            |
 | ------------------------------------ | ------------------------------------------------- |
 | `AZURE_STATIC_WEB_APPS_API_TOKEN`    | Output of the `az staticwebapp secrets list` command above |
-| `VITE_AAD_CLIENT_ID`                 | Application (client) ID from step 2                |
-| `VITE_AAD_TENANT_ID`                 | Directory (tenant) ID from step 2                  |
+
+Add as **variables** (not secrets — these are public client identifiers that
+end up embedded in the compiled front-end bundle, not sensitive values):
+
+| Variable name                        | Value                                            |
+| ------------------------------------- | ------------------------------------------------- |
+| `VITE_AAD_CLIENT_ID`                  | Application (client) ID from step 2                |
+| `VITE_AAD_TENANT_ID`                  | Directory (tenant) ID from step 2                  |
 
 These are consumed by [`.github/workflows/azure-static-web-apps.yml`](../.github/workflows/azure-static-web-apps.yml),
 which builds the app with the `VITE_AAD_CLIENT_ID` / `VITE_AAD_TENANT_ID`

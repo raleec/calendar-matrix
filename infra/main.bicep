@@ -13,6 +13,12 @@ param branch string = 'main'
 @description('SKU tier for the Static Web App. Standard is required for custom auth / Microsoft Graph scenarios.')
 param sku string = 'Standard'
 
+@description('Optional GitHub personal access token (repo scope) used to configure the Azure-managed CI/CD integration for repositoryUrl/branch. Leave empty to skip that integration and deploy solely via the GitHub Actions workflow using AZURE_STATIC_WEB_APPS_API_TOKEN — required by the platform if repositoryUrl is set, otherwise the deployment will fail validation.')
+@secure()
+param repositoryToken string = ''
+
+var useManagedIntegration = !empty(repositoryToken)
+
 resource staticSite 'Microsoft.Web/staticSites@2023-12-01' = {
   name: name
   location: location
@@ -20,12 +26,19 @@ resource staticSite 'Microsoft.Web/staticSites@2023-12-01' = {
     name: sku
     tier: sku
   }
-  properties: {
+  properties: useManagedIntegration ? {
     repositoryUrl: repositoryUrl
     branch: branch
+    repositoryToken: repositoryToken
+    buildProperties: {
+      appLocation: '/'
+      outputLocation: 'dist'
+    }
+  } : {
     // Deployment is performed via the GitHub Actions workflow using the
     // AZURE_STATIC_WEB_APPS_API_TOKEN secret, so no build provider credentials
-    // are configured here.
+    // are configured here. Setting repositoryUrl without repositoryToken
+    // would fail ARM validation, so both are omitted in this mode.
     buildProperties: {
       appLocation: '/'
       outputLocation: 'dist'
