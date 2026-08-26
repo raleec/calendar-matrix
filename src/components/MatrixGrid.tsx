@@ -1,13 +1,16 @@
+import type { GraphPerson } from '../graph/types'
+
 export interface MatrixGridProps {
   month: number
   year: number
+  people?: GraphPerson[]
 }
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
 }
 
-export function MatrixGrid({ month, year }: MatrixGridProps) {
+export function MatrixGrid({ month, year, people = [] }: MatrixGridProps) {
   const days = Array.from(
     { length: daysInMonth(year, month) },
     (_, index) => index + 1,
@@ -30,11 +33,25 @@ export function MatrixGrid({ month, year }: MatrixGridProps) {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td className="empty-state" colSpan={days.length + 2}>
-              Add people to get started
-            </td>
-          </tr>
+          {people.length === 0 ? (
+            <tr>
+              <td className="empty-state" colSpan={days.length + 2}>
+                Add people to get started
+              </td>
+            </tr>
+          ) : (
+            people.map((person) => (
+              <tr key={person.id}>
+                <th scope="row" className="person-col">
+                  {person.displayName}
+                </th>
+                {days.map((day) => (
+                  <td key={day} />
+                ))}
+                <td />
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>
