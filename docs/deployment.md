@@ -61,12 +61,17 @@ az deployment group show \
 
 ## 2. Register the app in Microsoft Entra ID
 
+See [`docs/app-registration.md`](app-registration.md) for the full
+step-by-step guide (single-tenant SPA platform, redirect URIs, delegated
+Graph scopes, admin consent). In short:
+
 1. In the [Azure portal](https://portal.azure.com), go to **Microsoft Entra ID** → **App registrations** → **New registration**.
 2. Name it (e.g. `calendar-matrix`) and register.
 3. Under **Authentication**, add a **Single-page application** platform.
 4. Under **API permissions**, add the Microsoft Graph delegated permissions
-   the app needs (e.g. `User.Read`, `Calendars.Read`) and grant admin consent
-   if required by your tenant.
+   the app needs (`User.Read`, `User.ReadBasic.All`, `Calendars.Read.Shared`,
+   `GroupMember.Read.All`, `People.Read`) and grant admin consent if required
+   by your tenant.
 5. Note the **Application (client) ID** and **Directory (tenant) ID** from the
    **Overview** page — these become `VITE_AAD_CLIENT_ID` and
    `VITE_AAD_TENANT_ID`.
@@ -102,17 +107,17 @@ In the GitHub repository, go to **Settings → Secrets and variables → Actions
 
 Add as a **secret**:
 
-| Secret name                          | Value                                            |
-| ------------------------------------ | ------------------------------------------------- |
-| `AZURE_STATIC_WEB_APPS_API_TOKEN`    | Output of the `az staticwebapp secrets list` command above |
+| Secret name                       | Value                                                      |
+| --------------------------------- | ---------------------------------------------------------- |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Output of the `az staticwebapp secrets list` command above |
 
 Add as **variables** (not secrets — these are public client identifiers that
 end up embedded in the compiled front-end bundle, not sensitive values):
 
-| Variable name                        | Value                                            |
-| ------------------------------------- | ------------------------------------------------- |
-| `VITE_AAD_CLIENT_ID`                  | Application (client) ID from step 2                |
-| `VITE_AAD_TENANT_ID`                  | Directory (tenant) ID from step 2                  |
+| Variable name        | Value                               |
+| -------------------- | ----------------------------------- |
+| `VITE_AAD_CLIENT_ID` | Application (client) ID from step 2 |
+| `VITE_AAD_TENANT_ID` | Directory (tenant) ID from step 2   |
 
 These are consumed by [`.github/workflows/azure-static-web-apps.yml`](../.github/workflows/azure-static-web-apps.yml),
 which builds the app with the `VITE_AAD_CLIENT_ID` / `VITE_AAD_TENANT_ID`
