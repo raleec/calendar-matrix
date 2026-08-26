@@ -3,6 +3,7 @@ import type { StatusKey } from '../status'
 import { daysInMonth } from '../utils/date'
 import {
   getCachedSchedule,
+  invalidateCachedSchedule,
   scheduleCacheKey,
   setCachedSchedule,
 } from './scheduleCache'
@@ -26,6 +27,12 @@ export interface PersonSchedule {
   scheduleId: string
   /** One entry per day of the requested month, in calendar order (index 0 = the 1st). */
   days: CellStatus[]
+  /**
+   * Human-readable reason the schedule could not be retrieved, shown as a
+   * tooltip on {@link UNAVAILABLE} cells (e.g. "No permission to view this
+   * calendar"). Unset when every day resolved successfully.
+   */
+  unavailableReason?: string
 }
 
 export interface PersonInput {
@@ -128,11 +135,19 @@ function dayIndexInMonth(
   )
 }
 
+/** Default tooltip shown for an unavailable schedule when no reason (or a generic one) applies. */
+export const NO_PERMISSION_REASON = 'No permission to view this calendar'
+
 function unavailableSchedule(
   scheduleId: string,
   count: number,
+  reason: string = NO_PERMISSION_REASON,
 ): PersonSchedule {
-  return { scheduleId, days: Array<CellStatus>(count).fill(UNAVAILABLE) }
+  return {
+    scheduleId,
+    days: Array<CellStatus>(count).fill(UNAVAILABLE),
+    unavailableReason: reason,
+  }
 }
 
 function toPersonSchedule(
@@ -143,7 +158,7 @@ function toPersonSchedule(
   tentativeStatus: CellStatus,
 ): PersonSchedule {
   if (entry.error) {
-    return unavailableSchedule(entry.scheduleId, count)
+    return unavailableSchedule(entry.scheduleId, count, entry.error.message)
   }
 
   const view = entry.availabilityView ?? ''
@@ -260,7 +275,10 @@ export async function getSchedules(
     }
 
     if (!person.mail) {
-      results.set(person.id, unavailableSchedule('', dayCount))
+      results.set(
+        person.id,
+        unavailableSchedule('', dayCount, 'No email address on file'),
+      )
       continue
     }
 
@@ -280,7 +298,7 @@ export async function getSchedules(
     } catch {
       entries = mails.map((mail) => ({
         scheduleId: mail,
-        error: { message: 'request failed' },
+        error: { message: 'Could not reach Microsoft Graph.' },
       }))
     }
 
@@ -288,7 +306,7 @@ export async function getSchedules(
       const person = peopleChunk[i]
       const entry = entries[i] ?? {
         scheduleId: person.mail as string,
-        error: { message: 'missing response entry' },
+        error: { message: 'No response received for this schedule.' },
       }
       const schedule = toPersonSchedule(
         entry,
@@ -303,4 +321,19 @@ export async function getSchedules(
   })
 
   return results
+}
+
+/**
+ * Busts the cached schedule for each of `people` for the given month, so the
+ * next {@link getSchedules} call re-fetches fresh data from Graph. Used by
+ * the grid's "Refresh" action.
+ */
+export function invalidateSchedules(
+  people: PersonInput[],
+  year: number,
+  month: number,
+): void {
+  for (const person of people) {
+    invalidateCachedSchedule(scheduleCacheKey(person.id, year, month))
+  }
 }
