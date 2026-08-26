@@ -54,3 +54,18 @@ export function setCachedSchedule(key: string, schedule: PersonSchedule): void {
 export function clearScheduleCache(): void {
   memoryCache.clear()
 }
+
+/**
+ * Removes the cached schedule (both in-memory and `sessionStorage`) for a
+ * single person/month, so the next `getSchedules` call re-fetches it from
+ * Graph. Used by the grid's refresh action.
+ */
+export function invalidateCachedSchedule(key: string): void {
+  memoryCache.delete(key)
+  try {
+    sessionStorage.removeItem(storageKey(key))
+  } catch {
+    // sessionStorage may be unavailable — the in-memory cache entry is
+    // already cleared, so there is nothing further to do.
+  }
+}
