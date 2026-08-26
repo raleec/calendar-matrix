@@ -7,10 +7,9 @@ Rows are people, columns are the days of the selected month, and cells are
 colour-coded by status (V = Vacation, P = Personal Leave, T = Travel,
 WE = Working Elsewhere), with per-person and per-day totals.
 
-This repository currently contains the project skeleton only: a Vite + React +
-TypeScript app with placeholder components. Authentication (MSAL), the people
-picker, the Microsoft Graph `getSchedule` data layer, and the full grid are
-tracked in separate issues.
+This repository currently contains the project skeleton, MSAL-based sign-in,
+and a placeholder grid. The people picker and the Microsoft Graph
+`getSchedule` data layer for the full grid are tracked in separate issues.
 
 ## Local development
 
@@ -62,8 +61,9 @@ cp .env.example .env.local
 
 > **Note:** a single-tenant Entra ID app registration (SPA platform, with the
 > local dev and deployed redirect URIs plus consented delegated Graph scopes) is
-> required before sign-in will work. Until that exists and the MSAL work lands,
-> the app renders a static shell only.
+> required before sign-in will work. See
+> [`docs/app-registration.md`](docs/app-registration.md) for the step-by-step
+> registration guide.
 
 ## Deployment
 

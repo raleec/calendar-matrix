@@ -22,6 +22,41 @@ body {
   margin: 0 0 0.75rem;
 }
 
+.account-button {
+  margin-bottom: 0.75rem;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.account-photo {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.account-photo-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #c8c6c4;
+  color: #201f1e;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.account-name {
+  font-weight: 600;
+}
+
+.signed-out-message {
+  color: #605e5c;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
