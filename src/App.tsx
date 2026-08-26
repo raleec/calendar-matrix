@@ -7,11 +7,14 @@ import { Legend } from './components/Legend'
 import { Toolbar } from './components/Toolbar'
 import { MatrixGrid } from './components/MatrixGrid'
 import { AccountButton } from './components/AccountButton'
+import { PeoplePicker } from './components/PeoplePicker'
+import { usePeopleSelection } from './hooks/usePeopleSelection'
 
 function App() {
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth())
   const [year, setYear] = useState(now.getFullYear())
+  const peopleSelection = usePeopleSelection()
 
   return (
     <main className="app">
@@ -29,7 +32,9 @@ function App() {
           onYearChange={setYear}
         />
 
-        <MatrixGrid month={month} year={year} />
+        <PeoplePicker selection={peopleSelection} />
+
+        <MatrixGrid month={month} year={year} people={peopleSelection.people} />
       </AuthenticatedTemplate>
 
       <UnauthenticatedTemplate>
