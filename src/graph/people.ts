@@ -4,9 +4,12 @@ import type { GraphGroup, GraphPerson } from './types'
 const SEARCH_PAGE_SIZE = 15
 const MEMBER_PAGE_SIZE = 999
 
-/** Escapes double quotes so a raw query string is safe to embed in `$search`. */
+/**
+ * Escapes backslashes and double quotes so a raw query string is safe to
+ * embed inside a `$search` quoted phrase.
+ */
 function toSearchTerm(query: string): string {
-  return query.trim().replace(/"/g, '\\"')
+  return query.trim().replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
 function toGraphPerson(user: {
