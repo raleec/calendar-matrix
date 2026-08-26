@@ -1,13 +1,10 @@
 import type { GraphPerson } from '../graph/types'
+import { daysInMonth } from '../utils/date'
 
 export interface MatrixGridProps {
   month: number
   year: number
   people?: GraphPerson[]
-}
-
-function daysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate()
 }
 
 export function MatrixGrid({ month, year, people = [] }: MatrixGridProps) {
