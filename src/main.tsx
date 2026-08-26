@@ -20,11 +20,10 @@ msalInstance.addEventCallback((event) => {
 })
 
 await msalInstance.initialize()
-await msalInstance.handleRedirectPromise().then((result) => {
-  if (result?.account) {
-    msalInstance.setActiveAccount(result.account)
-  }
-})
+const redirectResult = await msalInstance.handleRedirectPromise()
+if (redirectResult?.account) {
+  msalInstance.setActiveAccount(redirectResult.account)
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
