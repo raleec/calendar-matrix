@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "appId": "cd3aca6e-6d03-4b99-aa8b-1db8b62544d5",
+  "appDisplayName": "calendar-matrix",
+  "region": "prod",
+  "environmentId": "70a26f29-5292-ea0c-af0e-03fdf8f9de00",
+  "description": " ",
+  "buildPath": "dist",
+  "buildEntryPoint": "index.html",
+  "localAppUrl": "http://localhost:5173",
+  "logoPath": "Default",
+  "connectionReferences": {
+    "60fa6089-f3ff-4f89-86e0-a2aa4afb6560": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_office365users",
+      "displayName": "Office 365 Users",
+      "dataSources": [
+        "office365users"
+      ],
+      "dataSets": {}
+    },
+    "1ecdcf45-aa06-465a-8a02-2af8ac129409": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
+      "displayName": "Office 365 Outlook",
+      "dataSources": [
+        "office365"
+      ],
+      "dataSets": {}
+    },
+    "f12ab19f-b7be-4dbc-8a8e-7b9534825349": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_office365groups",
+      "displayName": "Office 365 Groups",
+      "dataSources": [
+        "office365groups"
+      ],
+      "dataSets": {}
+    }
+  },
+  "databaseReferences": {}
+}

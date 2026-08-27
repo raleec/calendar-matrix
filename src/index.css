@@ -85,15 +85,15 @@ body {
   font-weight: 600;
 }
 
-.status-V {
+.status-OOO {
   background-color: #f4a19b;
 }
 
-.status-P {
-  background-color: #a9c4e8;
+.status-DTO {
+  background-color: #f7c59f;
 }
 
-.status-T {
+.status-TR {
   background-color: #a8d5a2;
 }
 
@@ -220,6 +220,21 @@ body {
   color: #201f1e;
 }
 
+.people-clear-all {
+  margin-top: 0.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: #605e5c;
+  padding: 0.125rem 0;
+  text-decoration: underline;
+}
+
+.people-clear-all:hover {
+  color: #a4262c;
+}
+
 .grid-area-wrapper {
   display: flex;
   flex-direction: column;
@@ -338,15 +353,15 @@ body {
   background-color: #f3f2f1;
 }
 
-.matrix .cell-V {
+.matrix .cell-OOO {
   background-color: #f4a19b;
 }
 
-.matrix .cell-P {
-  background-color: #a9c4e8;
+.matrix .cell-DTO {
+  background-color: #f7c59f;
 }
 
-.matrix .cell-T {
+.matrix .cell-TR {
   background-color: #a8d5a2;
 }
 

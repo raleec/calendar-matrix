@@ -1,8 +1,4 @@
 import { useState } from 'react'
-import {
-  AuthenticatedTemplate,
-  UnauthenticatedTemplate,
-} from '@azure/msal-react'
 import { Legend } from './components/Legend'
 import { Toolbar } from './components/Toolbar'
 import { MatrixGrid } from './components/MatrixGrid'
@@ -24,24 +20,16 @@ function App() {
         <Legend />
       </header>
 
-      <AuthenticatedTemplate>
-        <Toolbar
-          month={month}
-          year={year}
-          onMonthChange={setMonth}
-          onYearChange={setYear}
-        />
+      <Toolbar
+        month={month}
+        year={year}
+        onMonthChange={setMonth}
+        onYearChange={setYear}
+      />
 
-        <PeoplePicker selection={peopleSelection} />
+      <PeoplePicker selection={peopleSelection} />
 
-        <MatrixGrid month={month} year={year} people={peopleSelection.people} />
-      </AuthenticatedTemplate>
-
-      <UnauthenticatedTemplate>
-        <p className="signed-out-message">
-          Sign in with your corporate account to view the calendar matrix.
-        </p>
-      </UnauthenticatedTemplate>
+      <MatrixGrid month={month} year={year} people={peopleSelection.people} />
     </main>
   )
 }

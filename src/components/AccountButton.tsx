@@ -1,48 +1,35 @@
 import { useEffect, useState } from 'react'
-import {
-  AuthenticatedTemplate,
-  UnauthenticatedTemplate,
-  useMsal,
-} from '@azure/msal-react'
-import type { AccountInfo } from '@azure/msal-browser'
-import { loginRequest, graphConfig } from '../authConfig'
-import { useGraphToken } from '../hooks/useGraphToken'
+import { Office365UsersService } from '../graph/../generated/services/Office365UsersService'
+import { usePowerAppsContext } from '../hooks/useGraphToken'
 
-function SignedIn({ account }: { account: AccountInfo }) {
-  const { instance } = useMsal()
-  const getGraphToken = useGraphToken()
+function AccountDisplay({
+  name,
+  objectId,
+}: {
+  name: string
+  objectId: string
+}) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    let objectUrl: string | null = null
     let cancelled = false
 
-    async function loadPhoto() {
-      try {
-        const accessToken = await getGraphToken(account)
-        const response = await fetch(graphConfig.photoEndpoint, {
-          headers: { Authorization: 'Bearer ' + accessToken },
-        })
-        if (!response.ok || cancelled) return
-        const blob = await response.blob()
-        objectUrl = URL.createObjectURL(blob)
-        if (!cancelled) setPhotoUrl(objectUrl)
-      } catch {
-        // No photo available (or permission denied) — fall back to initials.
-      }
-    }
-
-    void loadPhoto()
+    Office365UsersService.UserPhoto_V2(objectId)
+      .then((result) => {
+        if (!cancelled && result.success && result.data) {
+          setPhotoUrl(`data:image/jpeg;base64,${result.data}`)
+        }
+      })
+      .catch(() => {
+        // No photo available — fall back to initials.
+      })
 
     return () => {
       cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      if (photoUrl) URL.revokeObjectURL(photoUrl)
     }
-  }, [account, getGraphToken])
-
-  const signOut = () => {
-    void instance.logoutRedirect({ account })
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objectId])
 
   return (
     <div className="account">
@@ -53,34 +40,27 @@ function SignedIn({ account }: { account: AccountInfo }) {
           className="account-photo account-photo-placeholder"
           aria-hidden="true"
         >
-          {account.name?.charAt(0) ?? '?'}
+          {name.charAt(0) ?? '?'}
         </span>
       )}
-      <span className="account-name">{account.name}</span>
-      <button type="button" className="account-signout" onClick={signOut}>
-        Sign out
-      </button>
+      <span className="account-name">{name}</span>
     </div>
   )
 }
 
 export function AccountButton() {
-  const { instance, accounts } = useMsal()
+  const context = usePowerAppsContext()
 
-  const signIn = () => {
-    void instance.loginRedirect(loginRequest)
+  if (!context?.user.fullName || !context.user.objectId) {
+    return <div className="account-button" />
   }
 
   return (
     <div className="account-button">
-      <AuthenticatedTemplate>
-        {accounts[0] && <SignedIn account={accounts[0]} />}
-      </AuthenticatedTemplate>
-      <UnauthenticatedTemplate>
-        <button type="button" className="account-signin" onClick={signIn}>
-          Sign in
-        </button>
-      </UnauthenticatedTemplate>
+      <AccountDisplay
+        name={context.user.fullName}
+        objectId={context.user.objectId}
+      />
     </div>
   )
 }

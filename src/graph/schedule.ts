@@ -1,4 +1,8 @@
-import type { Client } from '@microsoft/microsoft-graph-client'
+/**
+ * Fetches and refines month-by-month availability data from Microsoft Graph
+ * into the per-day status values rendered by the calendar matrix.
+ */
+import { Office365UsersService } from '../generated/services/Office365UsersService'
 import type { StatusKey } from '../status'
 import { daysInMonth } from '../utils/date'
 import {
@@ -22,6 +26,7 @@ export const UNAVAILABLE = 'unavailable' as const
 /** The status shown in a single matrix cell. */
 export type CellStatus = DayStatus | typeof UNAVAILABLE
 
+/** Schedule data for a single person across the requested month. */
 export interface PersonSchedule {
   /** The mailbox identifier (email address) Graph reported this schedule for. */
   scheduleId: string
@@ -35,11 +40,13 @@ export interface PersonSchedule {
   unavailableReason?: string
 }
 
+/** The minimum person identity data needed to request schedule information. */
 export interface PersonInput {
   id: string
   mail: string | null
 }
 
+/** Optional knobs for how Graph schedule data is fetched and interpreted. */
 export interface GetSchedulesOptions {
   /**
    * Status to use for `tentative` (availabilityView code `1`) days. Defaults
@@ -48,12 +55,12 @@ export interface GetSchedulesOptions {
   tentativeStatus?: CellStatus
   /** Maximum number of `getSchedule` requests to issue concurrently. */
   concurrency?: number
-  signal?: AbortSignal
 }
 
 interface GraphScheduleItem {
   status?: string
   subject?: string
+  isAllDay?: boolean
   start?: { dateTime?: string }
   end?: { dateTime?: string }
 }
@@ -65,31 +72,16 @@ interface GraphScheduleInformation {
   error?: { message?: string } | null
 }
 
-const VACATION_PATTERN = /vacation|pto|annual leave/i
-const PERSONAL_PATTERN = /personal|appointment/i
-const TRAVEL_PATTERN = /travel|trip|onsite|offsite/i
-
-/** availabilityView codes for which a matching subject heuristic may override the default cell. */
-const OVERRIDABLE_CODES = new Set(['1', '2', '3'])
-
-function subjectToStatus(subject: string | undefined): StatusKey | null {
-  if (!subject) return null
-  if (VACATION_PATTERN.test(subject)) return 'V'
-  if (PERSONAL_PATTERN.test(subject)) return 'P'
-  if (TRAVEL_PATTERN.test(subject)) return 'T'
-  return null
-}
 
 function codeToStatus(code: string, tentativeStatus: CellStatus): CellStatus {
   switch (code) {
     case '1': // tentative
       return tentativeStatus
-    case '3': // oof
-      return 'V'
     case '4': // workingElsewhere
       return 'WE'
     case '0': // free
-    case '2': // busy
+    case '2': // busy — treated as free
+    case '3': // oof — refined via scheduleItems below
     default:
       return null
   }
@@ -123,20 +115,27 @@ function buildTimeWindow(
   }
 }
 
-/** Parses the `YYYY-MM-DD` prefix of a Graph date-time string into a day-of-month index for `year`/`month`. */
-function dayIndexInMonth(
-  dateTime: string,
-  year: number,
-  month: number,
-): number {
+/** Default tooltip shown for an unavailable schedule when no reason (or a generic one) applies. */
+export const NO_PERMISSION_REASON = 'No permission to view this calendar'
+
+const TRAVEL_PATTERN = /\btravel\b|trip|onsite|offsite/i
+const VACATION_PATTERN = /vacation|pto|annual leave|dto|out of office/i
+
+/** Refines an OOF calendar event to 'TR' or 'DTO' based on subject, defaulting to 'OOO'. */
+function oofSubjectToStatus(subject: string | undefined): 'TR' | 'DTO' | 'OOO' {
+  if (!subject) return 'OOO'
+  if (TRAVEL_PATTERN.test(subject)) return 'TR'
+  if (VACATION_PATTERN.test(subject)) return 'DTO'
+  return 'OOO'
+}
+
+/** Parses the `YYYY-MM-DD` prefix of a Graph date-time string into a day-of-month index. */
+function dayIndexInMonth(dateTime: string, year: number, month: number): number {
   const [y, m, d] = dateTime.slice(0, 10).split('-').map(Number)
   return Math.round(
     (Date.UTC(y, m - 1, d) - Date.UTC(year, month, 1)) / 86_400_000,
   )
 }
-
-/** Default tooltip shown for an unavailable schedule when no reason (or a generic one) applies. */
-export const NO_PERMISSION_REASON = 'No permission to view this calendar'
 
 function unavailableSchedule(
   scheduleId: string,
@@ -167,11 +166,10 @@ function toPersonSchedule(
     days.push(codeToStatus(view[i] ?? '0', tentativeStatus))
   }
 
+  // Refine OOF days and set WE from schedule items.
   for (const item of entry.scheduleItems ?? []) {
-    const override = subjectToStatus(item.subject)
     const startDateTime = item.start?.dateTime
-    if (!override || !startDateTime) continue
-
+    if (!startDateTime) continue
     const startIdx = dayIndexInMonth(startDateTime, year, month)
     const endIdx = item.end?.dateTime
       ? dayIndexInMonth(item.end.dateTime, year, month)
@@ -179,9 +177,19 @@ function toPersonSchedule(
     const from = Math.max(0, startIdx)
     const to = Math.min(count, Math.max(endIdx, startIdx + 1))
 
+    let status: CellStatus
+    if (item.status === 'oof') {
+      status = oofSubjectToStatus(item.subject)
+    } else if (item.status === 'workingElsewhere') {
+      status = 'WE'
+    } else {
+      continue
+    }
+
     for (let i = from; i < to; i++) {
-      if (OVERRIDABLE_CODES.has(view[i] ?? '0')) {
-        days[i] = override
+      // TR/DTO take priority over OOO/WE
+      if (days[i] === null || days[i] === 'WE' || days[i] === 'OOO') {
+        days[i] = status
       }
     }
   }
@@ -217,30 +225,39 @@ async function runWithConcurrency<T>(
 }
 
 /**
- * Calls `/me/calendar/getSchedule` for a single chunk of mailboxes.
- *
- * Throttling (HTTP 429) is handled by the Graph SDK's default `RetryHandler`
- * middleware, which respects `Retry-After` and backs off exponentially, so
- * no bespoke retry logic is needed here.
+ * Calls `/me/calendar/getSchedule` for a single chunk of mailboxes via the
+ * Office 365 Users connector's HttpRequest operation.
  */
 async function postGetSchedule(
-  client: Client,
   schedules: string[],
   timeWindow: ReturnType<typeof buildTimeWindow>,
-  signal?: AbortSignal,
 ): Promise<GraphScheduleInformation[]> {
-  const response = await client
-    .api('/me/calendar/getSchedule')
-    .header('Prefer', 'outlook.timezone="UTC"')
-    .options({ signal })
-    .post({
-      schedules,
-      startTime: timeWindow.startTime,
-      endTime: timeWindow.endTime,
-      availabilityViewInterval: 1440,
-    })
+  // Body must be a plain object (not a JSON string) — the connector schema
+  // declares Body as type "object" and the SDK serializes it to JSON internally.
+  const bodyObj = {
+    schedules,
+    startTime: timeWindow.startTime,
+    endTime: timeWindow.endTime,
+    availabilityViewInterval: 1440, // minutes per slot; 24h yields one availability code per day
+  }
 
-  return (response?.value ?? []) as GraphScheduleInformation[]
+  const result = await Office365UsersService.HttpRequest(
+    'https://graph.microsoft.com/v1.0/me/calendar/getSchedule',
+    'POST',
+    bodyObj as unknown as string,
+    'application/json',
+    'Prefer: outlook.timezone="UTC"',
+  )
+
+  if (!result.success) {
+    const err = result.error as { message?: string; status?: number } | undefined
+    throw new Error(
+      `getSchedule failed${err?.status ? ` (HTTP ${err.status})` : ''}: ${err?.message ?? 'unknown error'}`,
+    )
+  }
+
+  const data = result.data as { value?: GraphScheduleInformation[] }
+  return data?.value ?? []
 }
 
 /**
@@ -254,7 +271,6 @@ async function postGetSchedule(
  * failure) degrade to an {@link UNAVAILABLE} schedule instead of throwing.
  */
 export async function getSchedules(
-  client: Client,
   people: PersonInput[],
   year: number,
   month: number,
@@ -290,15 +306,19 @@ export async function getSchedules(
   const timeWindow = buildTimeWindow(year, month)
   const chunks = chunk(toFetch, SCHEDULES_PER_REQUEST)
 
+  let firstError: string | null = null
+
   await runWithConcurrency(chunks, concurrency, async (peopleChunk) => {
     const mails = peopleChunk.map((person) => person.mail as string)
     let entries: GraphScheduleInformation[]
     try {
-      entries = await postGetSchedule(client, mails, timeWindow, options.signal)
-    } catch {
+      entries = await postGetSchedule(mails, timeWindow)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not reach Microsoft Graph.'
+      if (!firstError) firstError = msg
       entries = mails.map((mail) => ({
         scheduleId: mail,
-        error: { message: 'Could not reach Microsoft Graph.' },
+        error: { message: msg },
       }))
     }
 
@@ -319,6 +339,10 @@ export async function getSchedules(
       setCachedSchedule(scheduleCacheKey(person.id, year, month), schedule)
     }
   })
+
+  if (firstError) {
+    throw new Error(firstError)
+  }
 
   return results
 }

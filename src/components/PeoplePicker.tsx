@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMsal } from '@azure/msal-react'
-import { createGraphClient } from '../graph/client'
+/**
+ * UI for building the selected-people list via Graph search shortcuts.
+ *
+ * Renders the search input, selected-person chips, and clear-all action, then
+ * delegates selection changes to `addPeople`, `removePerson`, and `clearAll`
+ * from the provided `selection` state.
+ */
+import { useEffect, useRef, useState } from 'react'
 import {
   getDirectReports,
   getGroupMembers,
@@ -8,78 +13,64 @@ import {
   searchUsers,
 } from '../graph/people'
 import type { GraphGroup, GraphPerson } from '../graph/types'
-import { useGraphToken } from '../hooks/useGraphToken'
+import { usePowerAppsContext } from '../hooks/useGraphToken'
 import { usePeopleSelection } from '../hooks/usePeopleSelection'
 
 const DEBOUNCE_MS = 300
 
 type SearchResult =
-  { kind: 'person'; person: GraphPerson } | { kind: 'group'; group: GraphGroup }
+  | { kind: 'person'; person: GraphPerson }
+  | { kind: 'group'; group: GraphGroup }
 
+/** Props for {@link PeoplePicker}. */
 export interface PeoplePickerProps {
   selection: ReturnType<typeof usePeopleSelection>
 }
 
+/** Lets the user search for people or groups and manage the current selection. */
 export function PeoplePicker({ selection }: PeoplePickerProps) {
-  const { people, addPeople, removePerson } = selection
-  const { instance, accounts } = useMsal()
-  const getGraphToken = useGraphToken()
-  const graphClient = useMemo(
-    () => createGraphClient(() => getGraphToken()),
-    [getGraphToken],
-  )
+  const { people, addPeople, removePerson, clearAll } = selection
+  const context = usePowerAppsContext()
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isExpandingGroup, setIsExpandingGroup] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
+  const requestGenRef = useRef(0)
 
   useEffect(() => {
     const term = query.trim()
-    abortRef.current?.abort()
-
     if (!term) {
+      setResults([])
       return
     }
 
-    const controller = new AbortController()
-    abortRef.current = controller
-
+    const gen = ++requestGenRef.current
     const timeoutId = window.setTimeout(() => {
       setIsSearching(true)
       setError(null)
 
-      Promise.all([
-        searchUsers(graphClient, term, controller.signal),
-        searchGroups(graphClient, term, controller.signal),
-      ])
+      Promise.all([searchUsers(term), searchGroups(term)])
         .then(([users, groups]) => {
-          if (controller.signal.aborted) return
+          if (gen !== requestGenRef.current) return
           setResults([
             ...groups.map((group): SearchResult => ({ kind: 'group', group })),
-            ...users.map((person): SearchResult => ({
-              kind: 'person',
-              person,
-            })),
+            ...users.map((person): SearchResult => ({ kind: 'person', person })),
           ])
         })
         .catch((err) => {
-          if (controller.signal.aborted) return
+          if (gen !== requestGenRef.current) return
           setError(err instanceof Error ? err.message : 'Search failed.')
         })
         .finally(() => {
-          if (controller.signal.aborted) return
+          if (gen !== requestGenRef.current) return
           setIsSearching(false)
         })
     }, DEBOUNCE_MS)
 
-    return () => {
-      window.clearTimeout(timeoutId)
-      controller.abort()
-    }
-  }, [query, graphClient])
+    return () => window.clearTimeout(timeoutId)
+  }, [query])
 
   const handleSelectPerson = (person: GraphPerson) => {
     addPeople([person])
@@ -91,7 +82,7 @@ export function PeoplePicker({ selection }: PeoplePickerProps) {
     setIsExpandingGroup(true)
     setError(null)
     try {
-      const members = await getGroupMembers(graphClient, group.id)
+      const members = await getGroupMembers(group.id)
       addPeople(members)
       setQuery('')
       setResults([])
@@ -105,10 +96,12 @@ export function PeoplePicker({ selection }: PeoplePickerProps) {
   }
 
   const handleAddDirectReports = async () => {
+    const objectId = context?.user.objectId
+    if (!objectId) return
     setIsExpandingGroup(true)
     setError(null)
     try {
-      const reports = await getDirectReports(graphClient)
+      const reports = await getDirectReports(objectId)
       addPeople(reports)
     } catch (err) {
       setError(
@@ -120,7 +113,7 @@ export function PeoplePicker({ selection }: PeoplePickerProps) {
   }
 
   const busy = isSearching || isExpandingGroup
-  const activeAccount = accounts[0]
+  const ready = !!context?.user.objectId
 
   return (
     <div className="people-picker">
@@ -132,14 +125,14 @@ export function PeoplePicker({ selection }: PeoplePickerProps) {
             value={query}
             placeholder="Search by name or email…"
             onChange={(event) => setQuery(event.target.value)}
-            disabled={!instance || !activeAccount}
+            disabled={!ready}
           />
         </label>
         <button
           type="button"
           className="people-picker-shortcut"
           onClick={() => void handleAddDirectReports()}
-          disabled={busy || !activeAccount}
+          disabled={busy || !ready}
         >
           Add my direct reports
         </button>
@@ -193,21 +186,30 @@ export function PeoplePicker({ selection }: PeoplePickerProps) {
       )}
 
       {people.length > 0 && (
-        <ul className="people-chip-list" aria-label="Selected people">
-          {people.map((person) => (
-            <li key={person.id} className="people-chip">
-              <span className="people-chip-name">{person.displayName}</span>
-              <button
-                type="button"
-                className="people-chip-remove"
-                aria-label={`Remove ${person.displayName}`}
-                onClick={() => removePerson(person.id)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="people-chip-list" aria-label="Selected people">
+            {people.map((person) => (
+              <li key={person.id} className="people-chip">
+                <span className="people-chip-name">{person.displayName}</span>
+                <button
+                  type="button"
+                  className="people-chip-remove"
+                  aria-label={`Remove ${person.displayName}`}
+                  onClick={() => removePerson(person.id)}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="people-clear-all"
+            onClick={clearAll}
+          >
+            Clear all
+          </button>
+        </>
       )}
     </div>
   )

@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useMsal } from '@azure/msal-react'
 import type { GraphPerson } from '../graph/types'
-import { createGraphClient } from '../graph/client'
-import { useGraphToken } from '../hooks/useGraphToken'
 import {
   getSchedules,
   invalidateSchedules,
@@ -35,7 +32,7 @@ function isWeekend(year: number, month: number, day: number): boolean {
 }
 
 function isAbsence(status: CellStatus | undefined): boolean {
-  return status === 'V' || status === 'P' || status === 'T' || status === 'WE'
+  return status === 'OOO' || status === 'DTO' || status === 'TR' || status === 'WE'
 }
 
 /** Builds the `aria-label` announced for a single grid cell. */
@@ -53,13 +50,6 @@ function cellAriaLabel(
 }
 
 export function MatrixGrid({ month, year, people = [] }: MatrixGridProps) {
-  const { accounts } = useMsal()
-  const getGraphToken = useGraphToken()
-  const graphClient = useMemo(
-    () => createGraphClient(() => getGraphToken()),
-    [getGraphToken],
-  )
-
   const [schedules, setSchedules] = useState<Map<string, PersonSchedule>>(
     new Map(),
   )
@@ -76,33 +66,29 @@ export function MatrixGrid({ month, year, people = [] }: MatrixGridProps) {
   const cellRefs = useRef<(HTMLTableCellElement | null)[][]>([])
 
   useEffect(() => {
-    if (people.length === 0 || !accounts[0]) {
+    if (people.length === 0) {
       return
     }
 
     let cancelled = false
-    const controller = new AbortController()
 
     async function loadSchedules() {
       setIsLoading(true)
       setError(null)
       try {
         const result = await getSchedules(
-          graphClient,
           people.map((person) => ({ id: person.id, mail: person.mail })),
           year,
           month,
-          { signal: controller.signal },
         )
         if (!cancelled) setSchedules(result)
       } catch (err) {
-        if (controller.signal.aborted) return
         if (!cancelled) {
           setSchedules(new Map())
           setError(
             err instanceof Error
               ? err.message
-              : 'Failed to load calendars from Microsoft Graph.',
+              : 'Failed to load calendars.',
           )
         }
       } finally {
@@ -114,9 +100,8 @@ export function MatrixGrid({ month, year, people = [] }: MatrixGridProps) {
 
     return () => {
       cancelled = true
-      controller.abort()
     }
-  }, [graphClient, people, year, month, accounts, reloadToken])
+  }, [people, year, month, reloadToken])
 
   const handleRetry = useCallback(() => {
     setReloadToken((token) => token + 1)

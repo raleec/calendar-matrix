@@ -1,146 +1,81 @@
-import type { Client } from '@microsoft/microsoft-graph-client'
+/**
+ * Graph-backed helpers for searching people and groups, then normalizing the
+ * connector responses into the app's shared person/group shapes.
+ */
+import { Office365GroupsService } from '../generated/services/Office365GroupsService'
+import { Office365UsersService } from '../generated/services/Office365UsersService'
 import type { GraphGroup, GraphPerson } from './types'
 
 const SEARCH_PAGE_SIZE = 15
 const MEMBER_PAGE_SIZE = 999
 
 /**
- * Escapes backslashes and double quotes so a raw query string is safe to
- * embed inside a `$search` quoted phrase.
+ * Normalizes connector user payloads into a single {@link GraphPerson} shape.
+ *
+ * The Office365Users connector returns PascalCase fields, while group-member
+ * responses from the Groups connector use camelCase, so this helper accepts
+ * either form.
  */
-function toSearchTerm(query: string): string {
-  return query.trim().replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-}
-
-function toGraphPerson(user: {
-  id: string
-  displayName?: string | null
-  mail?: string | null
+function userToPerson(user: {
+  Id?: string; id?: string
+  DisplayName?: string; displayName?: string
+  Mail?: string; mail?: string
 }): GraphPerson {
+  const id = (user.Id ?? user.id) || ''
   return {
-    id: user.id,
-    displayName: user.displayName ?? user.mail ?? user.id,
-    mail: user.mail ?? null,
+    id,
+    displayName: user.DisplayName ?? user.displayName ?? user.Mail ?? user.mail ?? id,
+    mail: user.Mail ?? user.mail ?? null,
   }
 }
 
-/**
- * Typeahead search for people by display name or mail address.
- * `$search` requires the `ConsistencyLevel: eventual` header.
- */
-export async function searchUsers(
-  client: Client,
-  query: string,
-  signal?: AbortSignal,
-): Promise<GraphPerson[]> {
-  const term = toSearchTerm(query)
+/** Typeahead search for people by display name or email. */
+export async function searchUsers(query: string): Promise<GraphPerson[]> {
+  const term = query.trim()
   if (!term) return []
-
-  const response = await client
-    .api('/users')
-    .header('ConsistencyLevel', 'eventual')
-    .search(`"displayName:${term}" OR "mail:${term}"`)
-    .select('id,displayName,mail')
-    .top(SEARCH_PAGE_SIZE)
-    .options({ signal })
-    .get()
-
-  const users: Array<{
-    id: string
-    displayName?: string | null
-    mail?: string | null
-  }> = response?.value ?? []
-
-  return users.map(toGraphPerson)
+  const result = await Office365UsersService.SearchUser(term, SEARCH_PAGE_SIZE)
+  if (!result.success || !result.data) return []
+  return result.data.map(userToPerson)
 }
 
-/** Typeahead search for groups by display name. */
-export async function searchGroups(
-  client: Client,
-  query: string,
-  signal?: AbortSignal,
-): Promise<GraphGroup[]> {
-  const term = toSearchTerm(query)
+/** Typeahead search for groups by display name (prefix match). */
+export async function searchGroups(query: string): Promise<GraphGroup[]> {
+  const term = query.trim()
   if (!term) return []
-
-  const response = await client
-    .api('/groups')
-    .header('ConsistencyLevel', 'eventual')
-    .search(`"displayName:${term}"`)
-    .select('id,displayName')
-    .top(SEARCH_PAGE_SIZE)
-    .options({ signal })
-    .get()
-
-  const groups: Array<{ id: string; displayName?: string | null }> =
-    response?.value ?? []
-
-  return groups.map((group) => ({
-    id: group.id,
-    displayName: group.displayName ?? group.id,
-  }))
+  const safe = term.replace(/'/g, "''")
+  const result = await Office365GroupsService.ListGroups(
+    undefined,
+    undefined,
+    `startswith(displayName,'${safe}')`,
+    SEARCH_PAGE_SIZE,
+  )
+  if (!result.success || !result.data?.value) return []
+  return result.data.value
+    .filter((g): g is NonNullable<typeof g> & { id: string } => !!g.id)
+    .map((g) => ({ id: g.id, displayName: g.displayName ?? g.id }))
 }
 
-/** Expands a group into its member users, following `@odata.nextLink` pages. */
-export async function getGroupMembers(
-  client: Client,
-  groupId: string,
-  signal?: AbortSignal,
-): Promise<GraphPerson[]> {
+/** Expands a group into its member users, paging with skipToken. */
+export async function getGroupMembers(groupId: string): Promise<GraphPerson[]> {
   const members: GraphPerson[] = []
-
-  let response = await client
-    .api(`/groups/${groupId}/members`)
-    .select('id,displayName,mail')
-    .top(MEMBER_PAGE_SIZE)
-    .options({ signal })
-    .get()
-
-  for (;;) {
-    const page: Array<{
-      id: string
-      displayName?: string | null
-      mail?: string | null
-      '@odata.type'?: string
-    }> = response?.value ?? []
-
-    for (const item of page) {
-      // Skip nested groups/contacts and only keep user-type members.
-      if (
-        item['@odata.type'] &&
-        item['@odata.type'] !== '#microsoft.graph.user'
-      ) {
-        continue
-      }
-      members.push(toGraphPerson(item))
+  let skipToken: string | undefined
+  do {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await Office365GroupsService.ListGroupMembers(groupId, MEMBER_PAGE_SIZE)
+    if (!result.success) break
+    for (const m of result.data?.value ?? []) {
+      if (m.id) members.push(userToPerson(m))
     }
-
-    const nextLink: string | undefined = response?.['@odata.nextLink']
-    if (!nextLink) break
-
-    response = await client.api(nextLink).options({ signal }).get()
-  }
-
+    skipToken = result.skipToken
+  } while (skipToken)
   return members
 }
 
-/** Direct reports of the signed-in user. */
-export async function getDirectReports(
-  client: Client,
-  signal?: AbortSignal,
-): Promise<GraphPerson[]> {
-  const response = await client
-    .api('/me/directReports')
-    .select('id,displayName,mail')
-    .top(MEMBER_PAGE_SIZE)
-    .options({ signal })
-    .get()
-
-  const reports: Array<{
-    id: string
-    displayName?: string | null
-    mail?: string | null
-  }> = response?.value ?? []
-
-  return reports.map(toGraphPerson)
+/** Direct reports of the signed-in user, identified by their Entra object ID. */
+export async function getDirectReports(userObjectId: string): Promise<GraphPerson[]> {
+  const result = await Office365UsersService.DirectReports_V2(userObjectId)
+  if (!result.success || !result.data?.value) return []
+  return result.data.value
+    .filter((u): u is NonNullable<typeof u> & { id: string } => !!u.id)
+    .map((u) => ({ id: u.id, displayName: u.displayName ?? u.mail ?? u.id, mail: u.mail ?? null }))
 }
