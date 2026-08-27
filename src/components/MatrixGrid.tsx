@@ -63,12 +63,26 @@ export function MatrixGrid({ month, year, people = [] }: MatrixGridProps) {
     [dayCount],
   )
 
+  const prevMonthRef = useRef<{ year: number; month: number } | null>(null)
+
   const cellRefs = useRef<(HTMLTableCellElement | null)[][]>([])
 
   useEffect(() => {
     if (people.length === 0) {
       return
     }
+
+    // Bust the cache when the user navigates to a different month so they
+    // always see fresh data rather than a potentially 30-minute-old snapshot.
+    const prev = prevMonthRef.current
+    if (prev && (prev.year !== year || prev.month !== month)) {
+      invalidateSchedules(
+        people.map((p) => ({ id: p.id, mail: p.mail })),
+        year,
+        month,
+      )
+    }
+    prevMonthRef.current = { year, month }
 
     let cancelled = false
 

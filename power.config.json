@@ -8,7 +8,8 @@
   "buildPath": "dist",
   "buildEntryPoint": "index.html",
   "localAppUrl": "http://localhost:5173",
-  "logoPath": "Default",
+  "logoPath": "public/color.png",
+  "outlineIconPath": "public/outline.png",
   "connectionReferences": {
     "60fa6089-f3ff-4f89-86e0-a2aa4afb6560": {
       "id": "/providers/Microsoft.PowerApps/apis/shared_office365users",
