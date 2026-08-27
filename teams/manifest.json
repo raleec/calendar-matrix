@@ -1,43 +1,41 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
-  "permissions": [
-    "identity",
-    "messageTeamMembers"
-  ],
-  "staticTabs": [
-    {
-      "websiteUrl": "https://apps.powerapps.com/play/e/70a26f29-5292-ea0c-af0e-03fdf8f9de00/app/cd3aca6e-6d03-4b99-aa8b-1db8b62544d5?tenantId=72f988bf-86f1-41af-91ab-2d7cd011db47",
-      "scopes": [
-        "personal"
-      ],
-      "entityId": "calendar-matrix",
-      "contentUrl": "https://apps.powerapps.com/play/e/70a26f29-5292-ea0c-af0e-03fdf8f9de00/app/cd3aca6e-6d03-4b99-aa8b-1db8b62544d5?tenantId=72f988bf-86f1-41af-91ab-2d7cd011db47&source=teamstab&locale={locale}&theme={theme}",
-      "name": "Calendar Matrix"
-    }
-  ],
-  "description": {
-    "short": "Team calendar availability matrix",
-    "full": "View your team's out-of-office, vacation, travel, and working-elsewhere status in a month-grid calendar matrix powered by Microsoft Graph."
-  },
+  "manifestVersion": "1.17",
+  "version": "1.0.1",
   "id": "cd3aca6e-6d03-4b99-aa8b-1db8b62544d5",
-  "accentColor": "#0078d4",
   "developer": {
+    "name": "Microsoft",
     "websiteUrl": "https://www.microsoft.com",
     "privacyUrl": "https://go.microsoft.com/fwlink/?LinkId=521839",
-    "termsOfUseUrl": "https://www.microsoft.com/servicesagreement",
-    "name": "Microsoft"
+    "termsOfUseUrl": "https://www.microsoft.com/servicesagreement"
   },
-  "version": "1.0.0",
-  "validDomains": [
-    "apps.powerapps.com"
-  ],
-  "manifestVersion": "1.17",
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
   "name": {
     "short": "Calendar Matrix",
     "full": "Calendar Matrix – Team Availability"
   },
-  "icons": {
-    "outline": "outline.png",
-    "color": "color.png"
-  }
+  "description": {
+    "short": "Team calendar availability matrix",
+    "full": "View your team's out-of-office, vacation, travel, and working-elsewhere status in a month-grid calendar matrix powered by Microsoft Graph."
+  },
+  "accentColor": "#0078d4",
+  "staticTabs": [
+    {
+      "entityId": "calendar-matrix",
+      "name": "Calendar Matrix",
+      "contentUrl": "https://apps.powerapps.com/play/e/70a26f29-5292-ea0c-af0e-03fdf8f9de00/app/cd3aca6e-6d03-4b99-aa8b-1db8b62544d5?tenantId=72f988bf-86f1-41af-91ab-2d7cd011db47&source=teamstab&hint=1f06fd26-b5bc-487e-a829-24a1fec55e90&locale={locale}&theme={theme}&hostClientType={hostClientType}",
+      "websiteUrl": "https://apps.powerapps.com/play/e/70a26f29-5292-ea0c-af0e-03fdf8f9de00/app/cd3aca6e-6d03-4b99-aa8b-1db8b62544d5?tenantId=72f988bf-86f1-41af-91ab-2d7cd011db47",
+      "scopes": ["personal"]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": [
+    "apps.powerapps.com",
+    "*.powerapps.com",
+    "login.microsoftonline.com",
+    "*.microsoftonline.com"
+  ]
 }
