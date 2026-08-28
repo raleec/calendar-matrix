@@ -80,7 +80,25 @@ registration required.
 
 ### Prerequisites
 
-[Node.js](https://nodejs.org) 18+ and `npm install` (already done if you followed the dev setup above). No Azure CLI or app registration needed.
+`npm install` (already done if you followed the dev setup above). You also need to **create an Entra app registration** the first time (one-time, ~5 minutes):
+
+1. Go to **[Microsoft Entra admin center](https://entra.microsoft.com)** (or Azure Portal → Microsoft Entra ID)
+2. **App registrations → New registration**
+   - Name: `Calendar Matrix (local dev)`
+   - Supported account types: *Accounts in this organizational directory only*
+   - Platform: **Single-page application**
+   - Redirect URI: `http://localhost:5173`
+3. Click **Register** — copy the **Application (client) ID**
+4. **API permissions → Add a permission → Microsoft Graph → Delegated permissions**, add:
+   - `Calendars.Read`
+   - `User.ReadBasic.All`
+   - `Group.Read.All` *(or ask your admin to grant `User.Read.All` and `Group.Read.All`)*
+5. Click **Grant admin consent** (or ask your admin)
+
+Create a `.env.local` file in the repo root:
+```
+VITE_LOCAL_CLIENT_ID=<paste your Application (client) ID here>
+```
 
 ### Starting local mode
 

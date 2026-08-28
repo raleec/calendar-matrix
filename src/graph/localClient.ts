@@ -12,11 +12,11 @@ import * as msal from '@azure/msal-browser'
 import type { GraphGroup, GraphPerson } from './types'
 import type { GraphScheduleInformation, TimeWindow } from './schedule'
 
-// Microsoft Office — universally pre-approved in all Microsoft 365 tenants,
-// including Microsoft's own corp tenant. Has pre-consented Calendar + User scopes.
-const CLIENT_ID = 'd3590ed6-52b3-4102-aeff-aad2292ab01c'
-// Microsoft tenant. Change to 'common' for personal/multi-tenant use.
-const TENANT_ID = '72f988bf-86f1-41af-91ab-2d7cd011db47'
+// Client ID for local MSAL browser auth.
+// Set VITE_LOCAL_CLIENT_ID in .env.local to use your own app registration.
+// See README §"Local mode" for setup instructions.
+const CLIENT_ID: string = import.meta.env.VITE_LOCAL_CLIENT_ID as string || ''
+const TENANT_ID = '72f988bf-86f1-41af-91ab-2d7cd011db47' // Microsoft corp tenant
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 
 const SCOPES = [
@@ -33,6 +33,14 @@ const SCOPES = [
 let _msalApp: msal.PublicClientApplication | null = null
 
 async function getMsalApp(): Promise<msal.PublicClientApplication> {
+  if (!CLIENT_ID) {
+    throw new Error(
+      'VITE_LOCAL_CLIENT_ID is not set.\n\n' +
+      'Create an Entra app registration and add it to .env.local:\n' +
+      '  VITE_LOCAL_CLIENT_ID=<your-app-client-id>\n\n' +
+      'See README § "Local mode" for step-by-step instructions.',
+    )
+  }
   if (!_msalApp) {
     _msalApp = new msal.PublicClientApplication({
       auth: {
