@@ -12,9 +12,9 @@ import * as msal from '@azure/msal-browser'
 import type { GraphGroup, GraphPerson } from './types'
 import type { GraphScheduleInformation, TimeWindow } from './schedule'
 
-// Microsoft Graph Command Line Tools — well-known public client with
-// pre-consented Calendar, User, and Group scopes.
-const CLIENT_ID = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
+// Microsoft Office — universally pre-approved in all Microsoft 365 tenants,
+// including Microsoft's own corp tenant. Has pre-consented Calendar + User scopes.
+const CLIENT_ID = 'd3590ed6-52b3-4102-aeff-aad2292ab01c'
 // Microsoft tenant. Change to 'common' for personal/multi-tenant use.
 const TENANT_ID = '72f988bf-86f1-41af-91ab-2d7cd011db47'
 const GRAPH = 'https://graph.microsoft.com/v1.0'
