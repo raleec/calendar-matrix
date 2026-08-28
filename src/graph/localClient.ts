@@ -21,9 +21,11 @@ const GRAPH = 'https://graph.microsoft.com/v1.0'
 
 const SCOPES = [
   'Calendars.Read',
+  'Calendars.Read.Shared',
   'User.Read',
-  'User.Read.All',
-  'Group.Read.All',
+  'User.ReadBasic.All',
+  'People.Read',
+  'offline_access',
 ]
 
 // ---------------------------------------------------------------------------
@@ -139,36 +141,15 @@ export async function localSearchUsers(query: string, top = 15): Promise<GraphPe
     .map((u) => ({ id: u.id, displayName: u.displayName ?? u.mail ?? u.id, mail: u.mail ?? null }))
 }
 
-export async function localSearchGroups(query: string, top = 15): Promise<GraphGroup[]> {
-  const safe = query.replace(/'/g, "''")
-  const data = await graphFetch<{ value: Array<{ id?: string; displayName?: string }> }>(
-    `/groups?$filter=startswith(displayName,'${safe}')&$top=${top}&$select=id,displayName`,
-  )
-  return (data.value ?? [])
-    .filter((g): g is typeof g & { id: string } => !!g.id)
-    .map((g) => ({ id: g.id, displayName: g.displayName ?? g.id }))
+export async function localSearchGroups(_query: string, _top = 15): Promise<GraphGroup[]> {
+  // Group.Read.All requires admin consent — not available in local mode.
+  console.warn('Group search is not available in local mode (requires admin-consented Group.Read.All).')
+  return []
 }
 
-export async function localGetGroupMembers(groupId: string): Promise<GraphPerson[]> {
-  const members: GraphPerson[] = []
-  let nextLink: string | undefined
-
-  do {
-    const url = nextLink
-      ? nextLink.replace(GRAPH, '')
-      : `/groups/${groupId}/members?$top=999&$select=id,displayName,mail`
-    // eslint-disable-next-line no-await-in-loop
-    const data = await graphFetch<{
-      value?: Array<{ id?: string; displayName?: string; mail?: string }>
-      '@odata.nextLink'?: string
-    }>(url)
-    for (const m of data.value ?? []) {
-      if (m.id) members.push({ id: m.id, displayName: m.displayName ?? m.mail ?? m.id, mail: m.mail ?? null })
-    }
-    nextLink = data['@odata.nextLink']
-  } while (nextLink)
-
-  return members
+export async function localGetGroupMembers(_groupId: string): Promise<GraphPerson[]> {
+  console.warn('Group member expansion is not available in local mode (requires admin-consented Group.Read.All).')
+  return []
 }
 
 export async function localGetDirectReports(userId: string): Promise<GraphPerson[]> {
