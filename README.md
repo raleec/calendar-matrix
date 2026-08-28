@@ -69,8 +69,8 @@ Then open the local play URL shown by `pac code run` (e.g.
 | `npm run lint` | Run ESLint |
 | `npm run format` | Format the repository with Prettier |
 | `npm run format:check` | Check formatting without writing files |
-| `npm run server` | Start the local Graph proxy (port 3001) |
-| `npm run local` | Start both the proxy and Vite together (Scout / standalone mode) |
+| `npm run server` | Start the local Express proxy (optional, port 3001) |
+| `npm run local` | Start Vite for browser-based local mode |
 
 ## Local mode (Scout / standalone)
 
@@ -88,24 +88,25 @@ registration required.
 npm run local
 ```
 
-This starts two processes concurrently:
-- **Express proxy** on port 3001 — authenticates via MSAL device-code flow
-  (Microsoft Graph PowerShell public client — no app registration needed), then
-  forwards Graph API calls with the cached token
-- **Vite dev server** on port 5173 — proxies `/api/*` to the Express proxy
+This starts the Vite dev server on port 5173. Open **http://localhost:5173**.
 
-On first run the terminal will print a URL and one-time code to sign in:
+On first load the app will show a **sign-in popup** (Microsoft MSAL browser auth). Sign in with your Microsoft 365 account. The popup uses the Microsoft Graph Command Line Tools public client — no custom app registration required.
+
+After signing in, the token is cached in `sessionStorage` and refreshed silently for the rest of the session.
+
+### How it works
 
 ```
-──────────────────────────────────────────────────────────────
-  Sign in to authorize Calendar Matrix (local mode)
-──────────────────────────────────────────────────────────────
-  To sign in, use a web browser to open https://microsoft.com/devicelogin
-  and enter the code XXXXXXXXX to authenticate.
-──────────────────────────────────────────────────────────────
+Browser (localhost:5173)
+  └── @azure/msal-browser (popup auth, PKCE)
+        └── Microsoft Graph API (graph.microsoft.com)
+              ├── /me — user identity
+              ├── /users  — people search
+              ├── /groups — group search & members
+              └── /me/calendar/getSchedule — availability
 ```
 
-After signing in the token is cached for the session (and refreshed automatically).
+No Express proxy or `az login` required. The browser handles all authentication, including MFA and Conditional Access policies.
 
 Open **http://localhost:5173** in your browser (or point Scout at that URL).
 
