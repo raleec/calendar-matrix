@@ -80,11 +80,7 @@ registration required.
 
 ### Prerequisites
 
-1. [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed and signed in:
-   ```bash
-   az login
-   ```
-2. `npm install` (already done if you followed the dev setup above)
+[Node.js](https://nodejs.org) 18+ and `npm install` (already done if you followed the dev setup above). No Azure CLI or app registration needed.
 
 ### Starting local mode
 
@@ -93,9 +89,23 @@ npm run local
 ```
 
 This starts two processes concurrently:
-- **Express proxy** on port 3001 — forwards Graph API calls, obtaining Bearer
-  tokens via `az account get-access-token`
+- **Express proxy** on port 3001 — authenticates via MSAL device-code flow
+  (Microsoft Graph PowerShell public client — no app registration needed), then
+  forwards Graph API calls with the cached token
 - **Vite dev server** on port 5173 — proxies `/api/*` to the Express proxy
+
+On first run the terminal will print a URL and one-time code to sign in:
+
+```
+──────────────────────────────────────────────────────────────
+  Sign in to authorize Calendar Matrix (local mode)
+──────────────────────────────────────────────────────────────
+  To sign in, use a web browser to open https://microsoft.com/devicelogin
+  and enter the code XXXXXXXXX to authenticate.
+──────────────────────────────────────────────────────────────
+```
+
+After signing in the token is cached for the session (and refreshed automatically).
 
 Open **http://localhost:5173** in your browser (or point Scout at that URL).
 

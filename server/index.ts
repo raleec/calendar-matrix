@@ -1,61 +1,94 @@
 /**
  * Local Graph proxy server for development without Power Platform.
  *
- * Obtains Microsoft Graph access tokens via the `az` CLI (`az account
- * get-access-token`) so no additional Entra app registration is needed.
- * The server runs on port 3001; Vite proxies `/api/*` to it in dev mode.
+ * Uses MSAL device-code flow (Microsoft Graph PowerShell public client) to
+ * acquire a delegated token with the required Calendar and User scopes — no
+ * custom Entra app registration needed. The token is cached in memory across
+ * requests and refreshed automatically via MSAL's refresh-token logic.
  *
  * Start with: `npm run server`  (or `npm run local` to start both together)
  */
 
-import { execSync } from 'child_process'
 import express, { type Request, type Response } from 'express'
+import {
+  PublicClientApplication,
+  type Configuration,
+  type AuthenticationResult,
+} from '@azure/msal-node'
 
 const PORT = 3001
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 
+// Microsoft Graph PowerShell — well-known public client, pre-consented for
+// Calendar + User + Group scopes in most Microsoft 365 tenants.
+const GRAPH_PS_CLIENT_ID = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
+
+const SCOPES = [
+  'https://graph.microsoft.com/Calendars.Read',
+  'https://graph.microsoft.com/User.Read',
+  'https://graph.microsoft.com/User.Read.All',
+  'https://graph.microsoft.com/Group.Read.All',
+  'https://graph.microsoft.com/offline_access',
+]
+
 // ---------------------------------------------------------------------------
-// Token management
+// MSAL setup
 // ---------------------------------------------------------------------------
 
-interface CachedToken {
-  token: string
-  expiresAt: number // ms epoch
+const msalConfig: Configuration = {
+  auth: {
+    clientId: GRAPH_PS_CLIENT_ID,
+    authority: 'https://login.microsoftonline.com/common',
+  },
 }
 
-let tokenCache: CachedToken | null = null
-const REFRESH_BUFFER_MS = 60_000 // refresh 60 s before expiry
+const msalApp = new PublicClientApplication(msalConfig)
 
-function getGraphToken(): string {
-  const now = Date.now()
-  if (tokenCache && tokenCache.expiresAt - REFRESH_BUFFER_MS > now) {
-    return tokenCache.token
-  }
+let cachedResult: AuthenticationResult | null = null
+const REFRESH_BUFFER_MS = 5 * 60 * 1000 // refresh 5 min before expiry
 
-  try {
-    const raw = execSync(
-      'az account get-access-token --resource https://graph.microsoft.com --output json',
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
-    )
-    const parsed = JSON.parse(raw) as { accessToken: string; expiresOn: string }
-    tokenCache = {
-      token: parsed.accessToken,
-      expiresAt: new Date(parsed.expiresOn).getTime(),
+async function getGraphToken(): Promise<string> {
+  // Try silent acquisition from cache first
+  if (cachedResult) {
+    const accounts = await msalApp.getTokenCache().getAllAccounts()
+    if (accounts.length > 0) {
+      try {
+        const silent = await msalApp.acquireTokenSilent({
+          scopes: SCOPES,
+          account: accounts[0],
+        })
+        if (silent && silent.expiresOn && silent.expiresOn.getTime() - REFRESH_BUFFER_MS > Date.now()) {
+          return silent.accessToken
+        }
+      } catch {
+        // Fall through to device code
+      }
     }
-    return tokenCache.token
-  } catch (err) {
-    throw new Error(
-      `Failed to get Graph token via az CLI. Make sure you are signed in with "az login".\n${String(err)}`,
-    )
   }
+
+  // Device code flow — prompts user once then caches refresh token
+  const result = await msalApp.acquireTokenByDeviceCode({
+    scopes: SCOPES,
+    deviceCodeCallback: (response) => {
+      console.log('\n' + '─'.repeat(60))
+      console.log('  Sign in to authorize Calendar Matrix (local mode)')
+      console.log('─'.repeat(60))
+      console.log(`  ${response.message}`)
+      console.log('─'.repeat(60) + '\n')
+    },
+  })
+
+  if (!result) throw new Error('Device code flow returned no token')
+  cachedResult = result
+  return result.accessToken
 }
 
 // ---------------------------------------------------------------------------
-// Graph proxy helper
+// Graph proxy helpers
 // ---------------------------------------------------------------------------
 
 async function graphGet<T>(path: string, extraHeaders?: Record<string, string>): Promise<T> {
-  const token = getGraphToken()
+  const token = await getGraphToken()
   const res = await fetch(`${GRAPH}${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -71,7 +104,7 @@ async function graphGet<T>(path: string, extraHeaders?: Record<string, string>):
 }
 
 async function graphPost<T>(path: string, body: unknown, extraHeaders?: Record<string, string>): Promise<T> {
-  const token = getGraphToken()
+  const token = await getGraphToken()
   const res = await fetch(`${GRAPH}${path}`, {
     method: 'POST',
     headers: {
@@ -173,12 +206,11 @@ app.get('/api/users/:id/directReports', (req: Request, res: Response) => {
 
 app.listen(PORT, () => {
   console.log(`Graph proxy listening on http://localhost:${PORT}`)
-  console.log('Fetching initial token...')
-  try {
-    getGraphToken()
-    console.log('Token OK — ready.')
-  } catch (err) {
-    console.error('Token fetch failed:', err instanceof Error ? err.message : err)
-    console.error('Run "az login" then restart the server.')
-  }
+  console.log('Authenticating with Microsoft Graph (device code)...')
+  getGraphToken()
+    .then(() => console.log('Authentication OK — proxy ready.\n'))
+    .catch((err) => {
+      console.error('Authentication failed:', err instanceof Error ? err.message : err)
+      process.exit(1)
+    })
 })
