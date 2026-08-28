@@ -11,7 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "server": "tsx server/index.ts",
-    "local": "vite"
+    "local": "vite --mode standalone"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.19.0",

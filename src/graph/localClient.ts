@@ -100,20 +100,13 @@ async function graphFetch<T>(
   return res.json() as Promise<T>
 }
 
-// ---------------------------------------------------------------------------
-// isLocalMode
-// ---------------------------------------------------------------------------
-
 /**
- * Returns true when the app is running outside the Power Apps host.
- * Detected by hostname (localhost) or the `VITE_LOCAL_MODE` env flag.
+ * Returns true only when explicitly running in standalone local mode
+ * (`npm run local`). When using `pac code run` the app still runs on
+ * localhost, but VITE_LOCAL_MODE is not set so connectors are used normally.
  */
 export function isLocalMode(): boolean {
-  return (
-    import.meta.env.VITE_LOCAL_MODE === 'true' ||
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1'
-  )
+  return import.meta.env.VITE_LOCAL_MODE === 'true'
 }
 
 // ---------------------------------------------------------------------------
