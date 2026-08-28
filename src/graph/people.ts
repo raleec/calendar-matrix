@@ -1,10 +1,19 @@
 /**
  * Graph-backed helpers for searching people and groups, then normalizing the
  * connector responses into the app's shared person/group shapes.
+ * In local mode (running outside Power Apps) the helpers delegate to
+ * `localClient` which calls the Express proxy instead of the connectors.
  */
 import { Office365GroupsService } from '../generated/services/Office365GroupsService'
 import { Office365UsersService } from '../generated/services/Office365UsersService'
 import type { GraphGroup, GraphPerson } from './types'
+import {
+  isLocalMode,
+  localGetDirectReports,
+  localGetGroupMembers,
+  localSearchGroups,
+  localSearchUsers,
+} from './localClient'
 
 const SEARCH_PAGE_SIZE = 15
 const MEMBER_PAGE_SIZE = 999
@@ -33,6 +42,7 @@ function userToPerson(user: {
 export async function searchUsers(query: string): Promise<GraphPerson[]> {
   const term = query.trim()
   if (!term) return []
+  if (isLocalMode()) return localSearchUsers(term, SEARCH_PAGE_SIZE)
   const result = await Office365UsersService.SearchUser(term, SEARCH_PAGE_SIZE)
   if (!result.success || !result.data) return []
   return result.data.map(userToPerson)
@@ -42,6 +52,7 @@ export async function searchUsers(query: string): Promise<GraphPerson[]> {
 export async function searchGroups(query: string): Promise<GraphGroup[]> {
   const term = query.trim()
   if (!term) return []
+  if (isLocalMode()) return localSearchGroups(term, SEARCH_PAGE_SIZE)
   const safe = term.replace(/'/g, "''")
   const result = await Office365GroupsService.ListGroups(
     undefined,
@@ -57,6 +68,7 @@ export async function searchGroups(query: string): Promise<GraphGroup[]> {
 
 /** Expands a group into its member users, paging with skipToken. */
 export async function getGroupMembers(groupId: string): Promise<GraphPerson[]> {
+  if (isLocalMode()) return localGetGroupMembers(groupId)
   const members: GraphPerson[] = []
   let skipToken: string | undefined
   do {
@@ -73,6 +85,7 @@ export async function getGroupMembers(groupId: string): Promise<GraphPerson[]> {
 
 /** Direct reports of the signed-in user, identified by their Entra object ID. */
 export async function getDirectReports(userObjectId: string): Promise<GraphPerson[]> {
+  if (isLocalMode()) return localGetDirectReports(userObjectId)
   const result = await Office365UsersService.DirectReports_V2(userObjectId)
   if (!result.success || !result.data?.value) return []
   return result.data.value

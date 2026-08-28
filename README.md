@@ -69,6 +69,49 @@ Then open the local play URL shown by `pac code run` (e.g.
 | `npm run lint` | Run ESLint |
 | `npm run format` | Format the repository with Prettier |
 | `npm run format:check` | Check formatting without writing files |
+| `npm run server` | Start the local Graph proxy (port 3001) |
+| `npm run local` | Start both the proxy and Vite together (Scout / standalone mode) |
+
+## Local mode (Scout / standalone)
+
+The app can also run without Power Platform using only an active
+[Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/) session — no app
+registration required.
+
+### Prerequisites
+
+1. [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed and signed in:
+   ```bash
+   az login
+   ```
+2. `npm install` (already done if you followed the dev setup above)
+
+### Starting local mode
+
+```bash
+npm run local
+```
+
+This starts two processes concurrently:
+- **Express proxy** on port 3001 — forwards Graph API calls, obtaining Bearer
+  tokens via `az account get-access-token`
+- **Vite dev server** on port 5173 — proxies `/api/*` to the Express proxy
+
+Open **http://localhost:5173** in your browser (or point Scout at that URL).
+
+The app auto-detects it is running on `localhost` and routes all Graph calls
+through the proxy instead of Power Apps connectors. No `pac code run` is
+needed in this mode.
+
+### How it works
+
+```
+Browser / Scout (localhost:5173)
+  └── Vite dev server
+        └── /api/* proxy → Express proxy (localhost:3001)
+              └── az account get-access-token → Bearer token
+                    └── Microsoft Graph API (graph.microsoft.com)
+```
 
 ## Deployment
 

@@ -11,6 +11,7 @@ import {
   scheduleCacheKey,
   setCachedSchedule,
 } from './scheduleCache'
+import { localGetSchedule, isLocalMode } from './localClient'
 
 /** Graph's `getSchedule` accepts at most this many mailboxes per request. */
 const SCHEDULES_PER_REQUEST = 20
@@ -57,7 +58,7 @@ export interface GetSchedulesOptions {
   concurrency?: number
 }
 
-interface GraphScheduleItem {
+export interface GraphScheduleItem {
   status?: string
   subject?: string
   isAllDay?: boolean
@@ -65,7 +66,7 @@ interface GraphScheduleItem {
   end?: { dateTime?: string }
 }
 
-interface GraphScheduleInformation {
+export interface GraphScheduleInformation {
   scheduleId: string
   availabilityView?: string
   scheduleItems?: GraphScheduleItem[]
@@ -96,13 +97,13 @@ function formatDateTime(year: number, month: number, day: number): string {
   return `${year}-${pad2(month + 1)}-${pad2(day)}T00:00:00`
 }
 
-function buildTimeWindow(
-  year: number,
-  month: number,
-): {
+/** Start/end datetime pair passed to Graph's `getSchedule` request body. */
+export type TimeWindow = {
   startTime: { dateTime: string; timeZone: string }
   endTime: { dateTime: string; timeZone: string }
-} {
+}
+
+function buildTimeWindow(year: number, month: number): TimeWindow {
   const endMonth = month === 11 ? 0 : month + 1
   const endYear = month === 11 ? year + 1 : year
 
@@ -225,13 +226,17 @@ async function runWithConcurrency<T>(
 }
 
 /**
- * Calls `/me/calendar/getSchedule` for a single chunk of mailboxes via the
- * Office 365 Users connector's HttpRequest operation.
+ * Calls `/me/calendar/getSchedule` — routes to the local Express proxy when
+ * running outside Power Apps, otherwise uses the Office 365 Users connector.
  */
 async function postGetSchedule(
   schedules: string[],
-  timeWindow: ReturnType<typeof buildTimeWindow>,
+  timeWindow: TimeWindow,
 ): Promise<GraphScheduleInformation[]> {
+  if (isLocalMode()) {
+    return localGetSchedule(schedules, timeWindow)
+  }
+
   // Body must be a plain object (not a JSON string) — the connector schema
   // declares Body as type "object" and the SDK serializes it to JSON internally.
   const bodyObj = {
